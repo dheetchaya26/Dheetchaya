@@ -1,0 +1,102 @@
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session
+
+from database import User, get_db
+from schemas import UserCreate, FeedbackRequest
+from ai_service import (
+    generate_workout_plan,
+    update_workout_plan,
+    generate_fitness_tip
+)
+
+app = FastAPI(title="FitBuddy - AI Fitness Plan Generator")
+
+
+@app.get("/")
+def home():
+    return {"message": "Welcome to FitBuddy!"}
+
+
+@app.post("/generate")
+def generate_plan(user: UserCreate, db: Session = Depends(get_db)):
+    workout_plan = generate_workout_plan(
+        user.name,
+        user.age,
+        user.weight,
+        user.goal,
+        user.intensity
+    )
+
+    new_user = User(
+        name=user.name,
+        age=user.age,
+        weight=user.weight,
+        goal=user.goal,
+        intensity=user.intensity,
+        workout_plan=workout_plan
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {
+        "user_id": new_user.id,
+        "workout_plan": workout_plan
+    }
+
+
+@app.post("/feedback")
+def feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == request.user_id).first()
+
+    if not user:
+        return {"error": "User not found"}
+
+    updated_plan = update_workout_plan(
+        user.workout_plan,
+        request.feedback
+    )
+
+    user.feedback = request.feedback
+    user.updated_plan = updated_plan
+
+    db.commit()
+
+    return {
+        "message": "Workout plan updated successfully",
+        "updated_plan": updated_plan
+    }
+
+
+@app.get("/tip/{user_id}")
+def get_tip(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        return {"error": "User not found"}
+
+    tip = generate_fitness_tip(user.goal)
+
+    return {
+        "goal": user.goal,
+        "tip": tip
+    }
+
+
+@app.get("/admin")
+def admin_dashboard(db: Session = Depends(get_db)):
+    users = db.query(User).all()
+
+    return {
+        "total_users": len(users),
+        "users": [
+            {
+                "id": user.id,
+                "name": user.name,
+                "goal": user.goal,
+                "intensity": user.intensity
+            }
+            for user in users
+        ]
+    }

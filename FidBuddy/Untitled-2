@@ -1,0 +1,29 @@
+from pydantic import BaseModel
+
+
+class UserCreate(BaseModel):
+    name: str
+    age: int
+    weight: float
+    goal: str
+    intensity: str
+
+
+class FeedbackRequest(BaseModel):
+    user_id: int
+    feedback: str
+
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    age: int
+    weight: float
+    goal: str
+    intensity: str
+    workout_plan: str = ""
+    updated_plan: str = ""
+    feedback: str = ""
+
+    class Config:
+        from_attributes = True
